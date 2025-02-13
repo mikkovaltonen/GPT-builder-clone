@@ -3,20 +3,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Chat history rules with nested messages
     match /chatHistory/{chatId} {
-      allow read: if true;
+      allow read: if true;      // Anyone can read chat histories
       
       match /messages/{messageId} {
-        allow read: if true;
-        allow create, update: if request.auth != null;
-        allow delete: if false;
+        allow read: if true;    // Anyone can read messages
+        allow create, update: if request.auth != null;  // Only authenticated users can write
+        allow delete: if false;  // No one can delete messages
       }
     }
     
     // Config rules
     match /configs/{document} {
-      allow read: if true;  // Anyone can read bot configs
+      allow read: if true;      // Anyone can read bot configs
       allow create, update: if request.auth != null;  // Only authenticated users can create/update
-      allow delete: if request.auth != null;  // Only authenticated users can delete their configs
+      allow delete: if request.auth != null;  // Only authenticated users can delete
     }
     
     // Deny access to all other collections by default
