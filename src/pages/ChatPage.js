@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from 
 import { db } from '../config/firebase';
 import { Box, TextField, Button, Paper, Typography, Container, CircularProgress } from '@mui/material';
 import Logo from '../components/Logo';
+import { sendChatMessage } from '../services/openai';
 
 function ChatPage() {
   const params = useParams();
@@ -103,38 +104,30 @@ ${config.exampleQuestions}
         }
       );
 
-      // Call OpenAI API
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.REACT_APP_OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: messages.concat(userMessage),
-          temperature: 0.7
-        })
+      // Use the OpenAI service instead of direct fetch
+      console.log('OpenAI Request:', {
+        model: "gpt-3.5-turbo",
+        messages: messages.concat(userMessage)
       });
 
-      const data = await response.json();
-      if (data.choices && data.choices[0]) {
-        const assistantMessage = data.choices[0].message;
-        setMessages(prev => [...prev, assistantMessage]);
-        
-        // Store assistant response in nested structure
-        await addDoc(
-          collection(db, 'chatHistory', chatId, 'messages'),
-          {
-            botId: config.publishId,
-            sender: 'assistant',
-            content: assistantMessage.content,
-            timestamp: serverTimestamp()
-          }
-        );
-      } else {
-        throw new Error('Invalid response from AI');
-      }
+      const assistantContent = await sendChatMessage(messages.concat(userMessage), config);
+      const assistantMessage = { role: 'assistant', content: assistantContent };
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Store assistant response
+      await addDoc(
+        collection(db, 'chatHistory', chatId, 'messages'),
+        {
+          botId: config.publishId,
+          sender: 'assistant',
+          content: assistantContent,
+          timestamp: serverTimestamp()
+        }
+      );
+
+      console.log('OpenAI Response:', {
+        assistantContent: assistantContent
+      });
     } catch (error) {
       console.error('AI Error:', error);
       const errorMessage = {

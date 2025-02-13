@@ -33,6 +33,7 @@ const createOpenAIClient = () => {
 export const sendChatMessage = async (messages, config) => {
   try {
     const openai = createOpenAIClient();
+    console.log('OpenAI Client created with key starting with:', getOpenAIKey().slice(0, 10));
 
     const systemMessage = {
       role: 'system',
@@ -44,6 +45,8 @@ export const sendChatMessage = async (messages, config) => {
       ...messages.filter(m => m.role !== 'system')
     ];
 
+    console.log('Sending request to OpenAI with messages:', allMessages);
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: allMessages,
@@ -52,7 +55,7 @@ export const sendChatMessage = async (messages, config) => {
 
     return completion.choices[0].message.content;
   } catch (error) {
-    console.error('OpenAI API Error:', error);
+    console.error('OpenAI Service Error:', error);
     throw error;
   }
 }; 
