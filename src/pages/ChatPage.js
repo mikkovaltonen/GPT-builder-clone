@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from 
 import { db } from '../config/firebase';
 import { Box, TextField, Button, Paper, Typography, Container, CircularProgress } from '@mui/material';
 import Logo from '../components/Logo';
-import { sendChatMessage } from '../services/openai';
+import { sendChatMessage } from '../services/gemini';
 
 function ChatPage() {
   const params = useParams();
@@ -125,14 +125,14 @@ ${config.exampleQuestions}
         }
       );
 
-      console.log('OpenAI Response:', {
+      console.log('Gemini Response:', {
         assistantContent: assistantContent
       });
     } catch (error) {
       console.error('AI Error:', error);
       const errorMessage = {
         role: 'assistant',
-        content: 'I apologize, but I encountered an error. Please try again or contact support.'
+        content: `Virhe: ${error.message}\n\nTarkista että:\n1. Gemini API-avain on asetettu .env.local tiedostoon\n2. Sovellus on käynnistetty uudelleen .env muutosten jälkeen\n3. API-avain on oikea (REACT_APP_GEMINI_API_KEY)`
       };
       setMessages(prev => [...prev, errorMessage]);
       

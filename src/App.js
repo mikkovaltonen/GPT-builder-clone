@@ -5,6 +5,7 @@ import ConfigWorkbench from './pages/ConfigWorkbench';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import './App.css';
 import ChatPage from './pages/ChatPage';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const [user, setUser] = React.useState(null);
@@ -25,28 +26,30 @@ function App() {
   }
 
   return (
-    <Routes>
-      <Route 
-        path="/" 
-        element={user ? <Navigate to="/config" /> : <Login />} 
-      />
-      <Route 
-        path="/config" 
-        element={user ? <ConfigWorkbench /> : <Navigate to="/" />} 
-      />
-      <Route 
-        path="/config/:botId" 
-        element={user ? <ConfigWorkbench /> : <Navigate to="/" />} 
-      />
-      <Route 
-        path="/chat/:publishId" 
-        element={<ChatPage />} 
-      />
-      <Route 
-        path="/published/:publishId" 
-        element={<ChatPage />} 
-      />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route 
+          path="/" 
+          element={user ? <Navigate to="/config" /> : <Login />} 
+        />
+        <Route 
+          path="/config" 
+          element={user ? <ConfigWorkbench /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/config/:botId" 
+          element={user ? <ConfigWorkbench /> : <Navigate to="/" />} 
+        />
+        <Route 
+          path="/chat/:publishId" 
+          element={<ChatPage />} 
+        />
+        <Route 
+          path="/published/:publishId" 
+          element={<ChatPage />} 
+        />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 
