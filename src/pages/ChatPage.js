@@ -75,7 +75,14 @@ ${config.exampleQuestions}
         }
       } catch (error) {
         console.error("Detailed error:", error);
-        setError('Error loading chatbot');
+        // Provide more specific error message
+        if (error.code === 'permission-denied') {
+          setError('Permission denied. Please check Firebase rules.');
+        } else if (error.code === 'unavailable') {
+          setError('Service unavailable. Please check your internet connection.');
+        } else {
+          setError(`Error loading chatbot: ${error.message || 'Unknown error'}`);
+        }
       } finally {
         setLoading(false);
       }
@@ -159,27 +166,33 @@ ${config.exampleQuestions}
     <Box 
       sx={{ 
         minHeight: '100vh',
+        height: '100vh',
         background: 'linear-gradient(to bottom, #f5f5f5, #e0e0e0)',
-        py: 2
+        py: { xs: 1, sm: 2 },
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
       }}
     >
-      <Container maxWidth="md">
-        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+      <Container maxWidth="md" sx={{ flex: 1, display: 'flex', flexDirection: 'column', px: { xs: 1, sm: 2 } }}>
+        <Box sx={{ mb: { xs: 1, sm: 2 }, display: 'flex', justifyContent: 'center' }}>
           <Logo />
         </Box>
         <Paper 
           elevation={3} 
           sx={{ 
-            p: 2, 
-            height: 'calc(100vh - 100px)', 
+            p: { xs: 1, sm: 2 }, 
+            flex: 1,
             display: 'flex', 
             flexDirection: 'column',
             bgcolor: 'rgba(255, 255, 255, 0.9)',
-            borderRadius: 2
+            borderRadius: 2,
+            maxHeight: 'calc(100vh - 80px)',
+            overflow: 'hidden'
           }}
         >
           {/* Chat Header */}
-          <Typography variant="h6" gutterBottom sx={{ textAlign: 'center' }}>
+          <Typography variant="h6" gutterBottom sx={{ textAlign: 'center', fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
             {config.name}
           </Typography>
 
@@ -187,9 +200,10 @@ ${config.exampleQuestions}
           <Box sx={{ 
             flexGrow: 1, 
             overflowY: 'auto', 
-            mb: 2,
-            p: 2,
-            borderRadius: 1
+            mb: { xs: 1, sm: 2 },
+            p: { xs: 1, sm: 2 },
+            borderRadius: 1,
+            WebkitOverflowScrolling: 'touch'
           }}>
             {messages.filter(m => m.role !== 'system').map((message, index) => (
               <Box 
@@ -203,10 +217,11 @@ ${config.exampleQuestions}
                 <Paper
                   elevation={1}
                   sx={{
-                    p: 2,
-                    maxWidth: '70%',
+                    p: { xs: 1.5, sm: 2 },
+                    maxWidth: { xs: '85%', sm: '70%' },
                     bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
-                    color: message.role === 'user' ? 'white' : 'text.primary'
+                    color: message.role === 'user' ? 'white' : 'text.primary',
+                    fontSize: { xs: '0.9rem', sm: '1rem' }
                   }}
                 >
                   <Typography>{message.content}</Typography>
@@ -216,7 +231,7 @@ ${config.exampleQuestions}
           </Box>
 
           {/* Input Area */}
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 }, flexDirection: { xs: 'column', sm: 'row' } }}>
             <TextField
               fullWidth
               value={input}
@@ -227,13 +242,23 @@ ${config.exampleQuestions}
               size="small"
               disabled={isProcessing}
               multiline
-              maxRows={4}
+              maxRows={3}
+              sx={{
+                fontSize: { xs: '0.9rem', sm: '1rem' },
+                '& .MuiOutlinedInput-root': {
+                  fontSize: { xs: '0.9rem', sm: '1rem' }
+                }
+              }}
             />
             <Button 
               variant="contained" 
               onClick={handleSendMessage}
               disabled={!input.trim() || isProcessing}
               endIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : null}
+              sx={{ 
+                minWidth: { xs: '100%', sm: 'auto' },
+                fontSize: { xs: '0.9rem', sm: '1rem' }
+              }}
             >
               Send
             </Button>
