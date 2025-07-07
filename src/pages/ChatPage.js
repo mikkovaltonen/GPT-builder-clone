@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Box, TextField, Button, Paper, Typography, Container, CircularProgress } from '@mui/material';
 import Logo from '../components/Logo';
@@ -41,7 +41,7 @@ ${config.exampleQuestions}
         },
         {
           role: 'assistant',
-          content: 'Hei! Miten voin auttaa?'
+          content: 'Hei! Olen Airbnb-majoituksesi henkilökohtainen avustaja. Miten voin auttaa sinua?'
         }
       ]);
     };
@@ -111,14 +111,23 @@ ${config.exampleQuestions}
         }
       );
 
-      // Use the OpenAI service instead of direct fetch
-      console.log('OpenAI Request:', {
-        model: "gpt-3.5-turbo",
+      // Log Gemini request details
+      console.log('Gemini Request:', {
+        model: process.env.REACT_APP_GEMINI_MODEL || "gemini-2.5-pro-preview-06-05",
         messages: messages.concat(userMessage)
       });
 
-      const assistantContent = await sendChatMessage(messages.concat(userMessage), config);
-      const assistantMessage = { role: 'assistant', content: assistantContent };
+      // Filter out system messages after the first interaction
+      const messagesToSend = messages.filter(msg => msg.role !== 'system').concat(userMessage);
+      const response = await sendChatMessage(messagesToSend, config, chatId);
+      const assistantContent = typeof response === 'string' ? response : response.text;
+      const groundingMetadata = typeof response === 'object' ? response.groundingMetadata : null;
+      
+      const assistantMessage = { 
+        role: 'assistant', 
+        content: assistantContent,
+        groundingMetadata: groundingMetadata
+      };
       setMessages(prev => [...prev, assistantMessage]);
       
       // Store assistant response
@@ -225,6 +234,48 @@ ${config.exampleQuestions}
                   }}
                 >
                   <Typography>{message.content}</Typography>
+                  {/* Display grounding links if available */}
+                  {message.groundingMetadata && message.groundingMetadata.webSearchQueries && (
+                    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 0.5 }}>
+                        Hakusanat:
+                      </Typography>
+                      {message.groundingMetadata.webSearchQueries.map((query, idx) => (
+                        <Typography key={idx} variant="caption" sx={{ display: 'block', ml: 1 }}>
+                          • {query}
+                        </Typography>
+                      ))}
+                      {/* Parse links from searchEntryPoint HTML */}
+                      {message.groundingMetadata.searchEntryPoint && (() => {
+                        const htmlContent = message.groundingMetadata.searchEntryPoint.renderedContent;
+                        const linkRegex = /<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/g;
+                        const links = [];
+                        let match;
+                        while ((match = linkRegex.exec(htmlContent)) !== null) {
+                          links.push({ url: match[1], text: match[2] });
+                        }
+                        return links.length > 0 && (
+                          <>
+                            <Typography variant="caption" sx={{ display: 'block', mb: 0.5, mt: 1 }}>
+                              Google-hakutulokset:
+                            </Typography>
+                            {links.map((link, idx) => (
+                              <Button
+                                key={idx}
+                                size="small"
+                                variant="text"
+                                href={link.url}
+                                target="_blank"
+                                sx={{ fontSize: '0.8rem', p: 0.5, display: 'block', textAlign: 'left' }}
+                              >
+                                {link.text}
+                              </Button>
+                            ))}
+                          </>
+                        );
+                      })()}
+                    </Box>
+                  )}
                 </Paper>
               </Box>
             ))}

@@ -4,22 +4,46 @@ const API_KEY = process.env.REACT_APP_GEMINI_API_KEY ||
                 window.REACT_APP_GEMINI_API_KEY || 
                 localStorage.getItem('GEMINI_API_KEY');
 
-const MODEL_NAME = process.env.REACT_APP_GEMINI_MODEL;
+const MODEL_NAME = process.env.REACT_APP_GEMINI_MODEL || 
+                   window.REACT_APP_GEMINI_MODEL || 
+                   localStorage.getItem('GEMINI_MODEL') || 
+                   'gemini-2.0-flash-exp';
 
 console.log('Gemini API Key:', API_KEY ? `${API_KEY.substring(0, 10)}...` : 'Not found');
+console.log('Gemini Model from env:', process.env.REACT_APP_GEMINI_MODEL || 'Not set');
+console.log('Gemini Model being used:', MODEL_NAME);
 
 let genAI = null;
 let model = null;
 
 if (API_KEY && MODEL_NAME) {
   genAI = new GoogleGenerativeAI(API_KEY);
-  model = genAI.getGenerativeModel({ model: MODEL_NAME });
-  console.log('Gemini model initialized:', MODEL_NAME);
+  model = genAI.getGenerativeModel({ 
+    model: MODEL_NAME,
+    tools: [{
+      googleSearch: {}
+    }]
+  });
+  console.log('Gemini model initialized:', MODEL_NAME, 'with Google Search grounding');
+  console.log('Model configuration:', {
+    model: MODEL_NAME,
+    temperature: 0.3,
+    topP: 0.8,
+    topK: 10,
+    maxOutputTokens: 2048
+  });
 } else if (!MODEL_NAME) {
   console.error('Gemini model not configured. Please set REACT_APP_GEMINI_MODEL in .env');
 }
 
-export const sendChatMessage = async (messages) => {
+// Store system context for the session - use Map to store per chat
+const systemContextMap = new Map();
+
+export const setSystemContext = (chatId, context) => {
+  systemContextMap.set(chatId, context);
+};
+
+export const sendChatMessage = async (messages, config, chatId = 'default') => {
   if (!model) {
     throw new Error('Gemini API key or model not configured');
   }
@@ -27,16 +51,27 @@ export const sendChatMessage = async (messages) => {
   try {
     console.log('Sending request to Gemini with messages:', messages);
     
+    // Get or set system context for this chat
+    let systemContext = systemContextMap.get(chatId);
+    
+    // Set system context from config if not already set
+    if (config && config.roleDescription && !systemContext) {
+      systemContext = `${config.roleDescription}\n\nInstructions and Knowledge:\n${config.instructions}\n\nExample Q&A:\n${config.exampleQuestions}`;
+      systemContextMap.set(chatId, systemContext);
+      console.log('System context initialized for chat:', chatId, {
+        contextLength: systemContext.length,
+        preview: systemContext.substring(0, 200) + '...'
+      });
+    }
+    
     // Convert OpenAI format to Gemini format
     const history = [];
     let currentPrompt = '';
     
     messages.forEach((msg, index) => {
       if (msg.role === 'system') {
-        // Add system message as the first user message
-        if (index === 0) {
-          currentPrompt = msg.content + '\n\n';
-        }
+        // Skip system messages as we handle them separately
+        return;
       } else if (msg.role === 'user') {
         if (index === messages.length - 1) {
           // Last user message becomes the prompt
@@ -58,12 +93,19 @@ export const sendChatMessage = async (messages) => {
       }
     });
 
+    // Always prepend system context to the current prompt if available
+    const chatHistory = [...history];
+    if (systemContext && currentPrompt) {
+      currentPrompt = systemContext + '\n\n' + currentPrompt;
+      console.log('Including system context in prompt for chat:', chatId);
+    }
+    
     // Start chat with history
     const chat = model.startChat({
-      history: history,
+      history: chatHistory,
       generationConfig: {
         maxOutputTokens: 2048,
-        temperature: 0.7,
+        temperature: 0.3,
         topP: 0.8,
         topK: 10
       },
@@ -73,15 +115,31 @@ export const sendChatMessage = async (messages) => {
     const response = await result.response;
     const text = response.text();
     
+    // Extract grounding metadata if available
+    let groundingMetadata = null;
+    if (response.candidates && response.candidates[0]) {
+      groundingMetadata = response.candidates[0].groundingMetadata;
+      if (groundingMetadata) {
+        console.log('Grounding metadata found:', JSON.stringify(groundingMetadata, null, 2));
+      }
+    }
+    
     console.log('Gemini response received:', text.substring(0, 100) + '...');
     
-    return text;
+    // Return both text and metadata
+    return {
+      text: text,
+      groundingMetadata: groundingMetadata
+    };
   } catch (error) {
     console.error('Gemini Service Error:', error);
     throw error;
   }
 };
 
-export default {
-  sendChatMessage
+const geminiService = {
+  sendChatMessage,
+  setSystemContext
 };
+
+export default geminiService;
