@@ -10,7 +10,6 @@ import {
   Paper,
   Grid,
   useTheme,
-  useMediaQuery,
   FormControlLabel,
   Checkbox,
   Dialog,
