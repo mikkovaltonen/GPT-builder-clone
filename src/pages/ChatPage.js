@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Box, TextField, Button, Paper, Typography, Container, CircularProgress } from '@mui/material';
+import ReactMarkdown from 'react-markdown';
 import Logo from '../components/Logo';
 import { sendChatMessage } from '../services/gemini';
 
@@ -233,7 +234,37 @@ ${config.exampleQuestions}
                     fontSize: { xs: '0.9rem', sm: '1rem' }
                   }}
                 >
-                  <Typography>{message.content}</Typography>
+                  <ReactMarkdown
+                    components={{
+                      // Custom styles for Markdown elements
+                      h1: ({children}) => <Typography variant="h5" sx={{mb: 1, fontWeight: 'bold'}}>{children}</Typography>,
+                      h2: ({children}) => <Typography variant="h6" sx={{mb: 1, fontWeight: 'bold'}}>{children}</Typography>,
+                      h3: ({children}) => <Typography variant="subtitle1" sx={{mb: 1, fontWeight: 'bold'}}>{children}</Typography>,
+                      p: ({children}) => <Typography sx={{mb: 1}}>{children}</Typography>,
+                      strong: ({children}) => <Typography component="span" sx={{fontWeight: 'bold'}}>{children}</Typography>,
+                      em: ({children}) => <Typography component="span" sx={{fontStyle: 'italic'}}>{children}</Typography>,
+                      ul: ({children}) => <Box component="ul" sx={{pl: 2, mb: 1}}>{children}</Box>,
+                      ol: ({children}) => <Box component="ol" sx={{pl: 2, mb: 1}}>{children}</Box>,
+                      li: ({children}) => <Typography component="li" sx={{mb: 0.5}}>{children}</Typography>,
+                      a: ({href, children}) => (
+                        <Typography 
+                          component="a" 
+                          href={href} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          sx={{
+                            color: 'primary.main',
+                            textDecoration: 'underline',
+                            '&:hover': { textDecoration: 'none' }
+                          }}
+                        >
+                          {children}
+                        </Typography>
+                      )
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
                   {/* Display grounding links if available */}
                   {message.groundingMetadata && message.groundingMetadata.webSearchQueries && (
                     <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(0,0,0,0.1)' }}>
