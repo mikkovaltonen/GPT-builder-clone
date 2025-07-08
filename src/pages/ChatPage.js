@@ -96,7 +96,6 @@ ${config.exampleQuestions}
 
   // Save chat session if not already saved
   const saveChatSession = async () => {
-    console.log('saveChatSession called - chatDocId:', chatDocId, 'messages:', messages.length);
     if (!chatDocId && messages.length > 1) {
       try {
         const chatDoc = await addDoc(collection(db, 'Airbnb_chathistory'), {
@@ -172,12 +171,10 @@ ${config.exampleQuestions}
     // First ensure chat session is saved and get the ID
     let docId = chatDocId;
     if (!docId) {
-      console.log('No chatDocId yet, saving chat session first...');
       docId = await saveChatSession();
     }
     
     // Save feedback to Firestore
-    console.log('Using chatDocId:', docId);
     if (docId) {
       try {
         const messagesToSave = updatedMessages.map((msg, index) => ({

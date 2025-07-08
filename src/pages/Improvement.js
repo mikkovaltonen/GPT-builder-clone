@@ -419,7 +419,6 @@ const Improvement = () => {
                     
                     {/* Messages */}
                     <Box sx={{ flex: 1, overflow: 'auto', pr: 1 }}>
-                      {console.log('Selected chat messages:', selectedChat.messages)}
                       {selectedChat.messages?.map((message, index) => (
                         <Box key={index} sx={{ mb: 2 }}>
                           <Paper
@@ -472,7 +471,6 @@ const Improvement = () => {
                             {/* Feedback display for assistant messages */}
                             {message.role === 'assistant' && (
                               <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #444' }}>
-                                {console.log(`Message ${index}:`, JSON.stringify(message, null, 2))}
                                 
                                 {/* Show feedback if exists */}
                                 {message.feedback ? (
