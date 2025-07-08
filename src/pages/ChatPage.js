@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Box, TextField, Button, Paper, Typography, Container, CircularProgress } from '@mui/material';
+import { Box, TextField, Button, Paper, Typography, Container, CircularProgress, IconButton } from '@mui/material';
+import { ThumbUp, ThumbDown } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import Logo from '../components/Logo';
 import { sendChatMessage } from '../services/gemini';
@@ -18,6 +19,7 @@ function ChatPage() {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [chatId] = useState(`chat_${Date.now()}`);
+  const [chatDocId, setChatDocId] = useState(null);
 
   // Initialize chat with combined instructions
   useEffect(() => {
@@ -92,6 +94,110 @@ ${config.exampleQuestions}
     fetchConfig();
   }, [publishId]);
 
+  // Save chat session if not already saved
+  const saveChatSession = async () => {
+    console.log('saveChatSession called - chatDocId:', chatDocId, 'messages:', messages.length);
+    if (!chatDocId && messages.length > 1) {
+      try {
+        const chatDoc = await addDoc(collection(db, 'Airbnb_chathistory'), {
+          publishId: config.publishId,
+          botName: config.name,
+          messages: messages.map((msg, index) => ({
+            ...msg,
+            messageId: `msg_${index}`,
+            feedback: msg.feedback || null,
+            feedbackComment: msg.feedbackComment || null
+          })),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        setChatDocId(chatDoc.id);
+        return chatDoc.id; // Return the new ID
+      } catch (error) {
+        console.error('Error saving chat session:', error);
+        return null;
+      }
+    } else if (chatDocId) {
+      // Update existing chat session
+      try {
+        await updateDoc(doc(db, 'Airbnb_chathistory', chatDocId), {
+          messages: messages.map((msg, index) => ({
+            ...msg,
+            messageId: `msg_${index}`,
+            feedback: msg.feedback || null,
+            feedbackComment: msg.feedbackComment || null
+          })),
+          updatedAt: serverTimestamp()
+        });
+        return chatDocId; // Return existing ID
+      } catch (error) {
+        console.error('Error updating chat session:', error);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  // Handle feedback
+  const handleFeedback = async (messageIndex, feedback) => {
+    // Check if feedback already exists for this message
+    if (messages[messageIndex].feedback) {
+      alert('Olet jo antanut palautteen tälle vastaukselle.');
+      return;
+    }
+
+    let feedbackComment = null;
+    
+    // If it's bad feedback, ask for a comment
+    if (feedback === 'bad') {
+      feedbackComment = prompt('Miksi vastaus oli huono? Kerro meille, jotta voimme parantaa assistenttia:');
+      // If user cancels the prompt, don't proceed with feedback
+      if (feedbackComment === null) {
+        return;
+      }
+      // If user provides empty comment, that's ok but let's store it as is
+      if (feedbackComment === '') {
+        feedbackComment = 'Ei kommenttia';
+      }
+    }
+
+    const updatedMessages = [...messages];
+    updatedMessages[messageIndex] = {
+      ...updatedMessages[messageIndex],
+      feedback: feedback,
+      feedbackComment: feedbackComment
+    };
+    setMessages(updatedMessages);
+
+    // First ensure chat session is saved and get the ID
+    let docId = chatDocId;
+    if (!docId) {
+      console.log('No chatDocId yet, saving chat session first...');
+      docId = await saveChatSession();
+    }
+    
+    // Save feedback to Firestore
+    console.log('Using chatDocId:', docId);
+    if (docId) {
+      try {
+        const messagesToSave = updatedMessages.map((msg, index) => ({
+          ...msg,
+          messageId: `msg_${index}`,
+          feedback: msg.feedback || null,
+          feedbackComment: msg.feedbackComment || null
+        }));
+        await updateDoc(doc(db, 'Airbnb_chathistory', docId), {
+          messages: messagesToSave,
+          updatedAt: serverTimestamp()
+        });
+      } catch (error) {
+        console.error('Error saving feedback:', error);
+      }
+    } else {
+      console.error('Could not save feedback - no document ID available');
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim() || isProcessing) return;
 
@@ -101,22 +207,8 @@ ${config.exampleQuestions}
     setIsProcessing(true);
 
     try {
-      // Store user message in nested structure
-      await addDoc(
-        collection(db, 'chatHistory', chatId, 'messages'), 
-        {
-          botId: config.publishId,
-          sender: 'user',
-          content: input,
-          timestamp: serverTimestamp()
-        }
-      );
+      // Removed old chatHistory storage - using Airbnb_chathistory instead
 
-      // Log Gemini request details
-      console.log('Gemini Request:', {
-        model: process.env.REACT_APP_GEMINI_MODEL || "gemini-2.5-pro-preview-06-05",
-        messages: messages.concat(userMessage)
-      });
 
       // Filter out system messages after the first interaction
       const messagesToSend = messages.filter(msg => msg.role !== 'system').concat(userMessage);
@@ -131,20 +223,7 @@ ${config.exampleQuestions}
       };
       setMessages(prev => [...prev, assistantMessage]);
       
-      // Store assistant response
-      await addDoc(
-        collection(db, 'chatHistory', chatId, 'messages'),
-        {
-          botId: config.publishId,
-          sender: 'assistant',
-          content: assistantContent,
-          timestamp: serverTimestamp()
-        }
-      );
-
-      console.log('Gemini Response:', {
-        assistantContent: assistantContent
-      });
+      // Removed old chatHistory storage - using Airbnb_chathistory instead
     } catch (error) {
       console.error('AI Error:', error);
       const errorMessage = {
@@ -165,6 +244,8 @@ ${config.exampleQuestions}
       );
     } finally {
       setIsProcessing(false);
+      // Save chat session after message exchange
+      saveChatSession();
     }
   };
 
@@ -215,9 +296,13 @@ ${config.exampleQuestions}
             borderRadius: 1,
             WebkitOverflowScrolling: 'touch'
           }}>
-            {messages.filter(m => m.role !== 'system').map((message, index) => (
+            {messages.map((message, originalIndex) => {
+              // Skip system messages in rendering
+              if (message.role === 'system') return null;
+              
+              return (
               <Box 
-                key={index}
+                key={originalIndex}
                 sx={{
                   mb: 2,
                   display: 'flex',
@@ -307,9 +392,53 @@ ${config.exampleQuestions}
                       })()}
                     </Box>
                   )}
+                  {/* Feedback buttons for assistant messages */}
+                  {message.role === 'assistant' && (
+                    <Box sx={{ mt: 1, display: 'flex', gap: 1, justifyContent: 'flex-start' }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleFeedback(originalIndex, 'good')}
+                        disabled={message.feedback !== undefined}
+                        sx={{ 
+                          color: message.feedback === 'good' ? '#4CAF50' : (message.feedback ? '#ccc' : 'text.secondary'),
+                          bgcolor: message.feedback === 'good' ? 'rgba(76, 175, 80, 0.1)' : 'transparent',
+                          border: message.feedback === 'good' ? '2px solid #4CAF50' : 'none',
+                          '&:hover': { 
+                            bgcolor: message.feedback ? 'transparent' : 'rgba(76, 175, 80, 0.1)', 
+                            color: message.feedback ? (message.feedback === 'good' ? '#4CAF50' : '#ccc') : '#4CAF50'
+                          },
+                          '&.Mui-disabled': {
+                            color: message.feedback === 'good' ? '#4CAF50' : '#ccc'
+                          }
+                        }}
+                      >
+                        <ThumbUp fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleFeedback(originalIndex, 'bad')}
+                        disabled={message.feedback !== undefined}
+                        sx={{ 
+                          color: message.feedback === 'bad' ? '#f44336' : (message.feedback ? '#ccc' : 'text.secondary'),
+                          bgcolor: message.feedback === 'bad' ? 'rgba(244, 67, 54, 0.1)' : 'transparent',
+                          border: message.feedback === 'bad' ? '2px solid #f44336' : 'none',
+                          '&:hover': { 
+                            bgcolor: message.feedback ? 'transparent' : 'rgba(244, 67, 54, 0.1)', 
+                            color: message.feedback ? (message.feedback === 'bad' ? '#f44336' : '#ccc') : '#f44336'
+                          },
+                          '&.Mui-disabled': {
+                            color: message.feedback === 'bad' ? '#f44336' : '#ccc'
+                          }
+                        }}
+                      >
+                        <ThumbDown fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  )}
                 </Paper>
               </Box>
-            ))}
+              );
+            })}
           </Box>
 
           {/* Input Area */}
