@@ -6,6 +6,7 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import './App.css';
 import ChatPage from './pages/ChatPage';
 import ErrorBoundary from './components/ErrorBoundary';
+import Improvement from './pages/Improvement';
 
 function App() {
   const [user, setUser] = React.useState(null);
@@ -47,6 +48,10 @@ function App() {
         <Route 
           path="/published/:publishId" 
           element={<ChatPage />} 
+        />
+        <Route 
+          path="/improvement" 
+          element={user ? <Improvement /> : <Navigate to="/" />} 
         />
       </Routes>
     </ErrorBoundary>

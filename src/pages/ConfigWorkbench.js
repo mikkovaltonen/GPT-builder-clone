@@ -420,8 +420,26 @@ function ConfigWorkbench() {
               </Typography>
             </Box>
 
+            {/* Center: Improvement link */}
+            <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => navigate('/improvement')}
+                sx={{ 
+                  color: '#F39C12',
+                  textTransform: 'none',
+                  fontSize: '0.875rem',
+                  '&:hover': {
+                    backgroundColor: 'rgba(243, 156, 18, 0.08)'
+                  }
+                }}
+              >
+                Improvement & History
+              </Button>
+            </Box>
+            
             {/* Right side: Action buttons */}
-            <Box sx={{ flexGrow: 1 }} />
             <Stack direction="row" spacing={1}>
               <ActionButton
                 variant="outlined"
