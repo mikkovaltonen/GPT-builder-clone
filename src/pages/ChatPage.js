@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { collection, query, where, getDocs, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Box, TextField, Button, Paper, Typography, Container, CircularProgress, IconButton } from '@mui/material';
-import { ThumbUp, ThumbDown } from '@mui/icons-material';
+import { Box, TextField, Button, Paper, Typography, Container, CircularProgress, IconButton, Avatar, Chip } from '@mui/material';
+import { ThumbUp, ThumbDown, Send as SendIcon, SmartToy, Person } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import Logo from '../components/Logo';
 import { sendChatMessage } from '../services/gemini';
+import './ChatPage.css';
 
 function ChatPage() {
   const params = useParams();
@@ -18,8 +19,16 @@ function ChatPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [chatId] = useState(`chat_${Date.now()}`);
   const [chatDocId, setChatDocId] = useState(null);
+  const messagesEndRef = useRef(null);
+  
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+  
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   // Initialize chat with combined instructions
   useEffect(() => {
@@ -40,11 +49,13 @@ ${config.exampleQuestions}
       setMessages([
         {
           role: 'system',
-          content: systemPrompt
+          content: systemPrompt,
+          timestamp: new Date().toISOString()
         },
         {
           role: 'assistant',
-          content: 'Hei! Olen Airbnb-majoituksesi henkilökohtainen avustaja. Miten voin auttaa sinua?'
+          content: 'Hei! Olen Airbnb-majoituksesi henkilökohtainen avustaja. Miten voin auttaa sinua?',
+          timestamp: new Date().toISOString()
         }
       ]);
     };
@@ -94,41 +105,32 @@ ${config.exampleQuestions}
     fetchConfig();
   }, [publishId]);
 
-  // Save chat session if not already saved
+  // Save chat session - simplified structure
   const saveChatSession = async () => {
-    if (!chatDocId && messages.length > 1) {
+    const messagesToSave = messages.filter(msg => msg.role !== 'system');
+    
+    if (!chatDocId && messagesToSave.length > 1) {
       try {
         const chatDoc = await addDoc(collection(db, 'Airbnb_chathistory'), {
           publishId: config.publishId,
           botName: config.name,
-          messages: messages.map((msg, index) => ({
-            ...msg,
-            messageId: `msg_${index}`,
-            feedback: msg.feedback || null,
-            feedbackComment: msg.feedbackComment || null
-          })),
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
+          updatedAt: serverTimestamp(),
+          messages: messagesToSave
         });
         setChatDocId(chatDoc.id);
-        return chatDoc.id; // Return the new ID
+        return chatDoc.id;
       } catch (error) {
         console.error('Error saving chat session:', error);
         return null;
       }
     } else if (chatDocId) {
-      // Update existing chat session
       try {
         await updateDoc(doc(db, 'Airbnb_chathistory', chatDocId), {
-          messages: messages.map((msg, index) => ({
-            ...msg,
-            messageId: `msg_${index}`,
-            feedback: msg.feedback || null,
-            feedbackComment: msg.feedbackComment || null
-          })),
+          messages: messagesToSave,
           updatedAt: serverTimestamp()
         });
-        return chatDocId; // Return existing ID
+        return chatDocId;
       } catch (error) {
         console.error('Error updating chat session:', error);
         return null;
@@ -154,7 +156,6 @@ ${config.exampleQuestions}
       if (feedbackComment === null) {
         return;
       }
-      // If user provides empty comment, that's ok but let's store it as is
       if (feedbackComment === '') {
         feedbackComment = 'Ei kommenttia';
       }
@@ -177,12 +178,7 @@ ${config.exampleQuestions}
     // Save feedback to Firestore
     if (docId) {
       try {
-        const messagesToSave = updatedMessages.map((msg, index) => ({
-          ...msg,
-          messageId: `msg_${index}`,
-          feedback: msg.feedback || null,
-          feedbackComment: msg.feedbackComment || null
-        }));
+        const messagesToSave = updatedMessages.filter(msg => msg.role !== 'system');
         await updateDoc(doc(db, 'Airbnb_chathistory', docId), {
           messages: messagesToSave,
           updatedAt: serverTimestamp()
@@ -198,54 +194,45 @@ ${config.exampleQuestions}
   const handleSendMessage = async () => {
     if (!input.trim() || isProcessing) return;
 
-    const userMessage = { role: 'user', content: input };
+    const userMessage = { 
+      role: 'user', 
+      content: input,
+      timestamp: new Date().toISOString()
+    };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsProcessing(true);
 
     try {
-      // Removed old chatHistory storage - using Airbnb_chathistory instead
-
-
-      // Filter out system messages after the first interaction
+      // Filter out system messages for API call
       const messagesToSend = messages.filter(msg => msg.role !== 'system').concat(userMessage);
-      const response = await sendChatMessage(messagesToSend, config, chatId);
+      const response = await sendChatMessage(messagesToSend, config, `chat_${Date.now()}`);
       const assistantContent = typeof response === 'string' ? response : response.text;
       const groundingMetadata = typeof response === 'object' ? response.groundingMetadata : null;
       
       const assistantMessage = { 
         role: 'assistant', 
         content: assistantContent,
-        groundingMetadata: groundingMetadata
+        groundingMetadata: groundingMetadata,
+        timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, assistantMessage]);
-      
-      // Removed old chatHistory storage - using Airbnb_chathistory instead
     } catch (error) {
       console.error('AI Error:', error);
       const errorMessage = {
         role: 'assistant',
-        content: `Virhe: ${error.message}\n\nTarkista että:\n1. Gemini API-avain on asetettu .env.local tiedostoon\n2. Sovellus on käynnistetty uudelleen .env muutosten jälkeen\n3. API-avain on oikea (REACT_APP_GEMINI_API_KEY)`
+        content: `Virhe: ${error.message}\n\nTarkista että:\n1. Gemini API-avain on asetettu .env.local tiedostoon\n2. Sovellus on käynnistetty uudelleen .env muutosten jälkeen\n3. API-avain on oikea (REACT_APP_GEMINI_API_KEY)`,
+        timestamp: new Date().toISOString(),
+        isError: true
       };
       setMessages(prev => [...prev, errorMessage]);
-      
-      // Store error message in nested structure
-      await addDoc(
-        collection(db, 'chatHistory', chatId, 'messages'),
-        {
-          botId: config.publishId,
-          sender: 'assistant',
-          content: errorMessage.content,
-          timestamp: serverTimestamp()
-        }
-      );
     } finally {
       setIsProcessing(false);
-      // Save chat session after message exchange
-      saveChatSession();
+      await saveChatSession();
     }
   };
 
+  
   if (loading) return <div>Loading...</div>;
   if (error) return <div>Error loading chatbot: {error}</div>;
   if (!config) return <div>Chatbot not found</div>;
@@ -255,44 +242,48 @@ ${config.exampleQuestions}
       sx={{ 
         minHeight: '100vh',
         height: '100vh',
-        background: 'linear-gradient(to bottom, #f5f5f5, #e0e0e0)',
-        py: { xs: 1, sm: 2 },
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }}
     >
-      <Container maxWidth="md" sx={{ flex: 1, display: 'flex', flexDirection: 'column', px: { xs: 1, sm: 2 } }}>
-        <Box sx={{ mb: { xs: 1, sm: 2 }, display: 'flex', justifyContent: 'center' }}>
+      <Container maxWidth="md" sx={{ flex: 1, display: 'flex', flexDirection: 'column', py: 2 }}>
+        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Logo />
+          <Chip 
+            icon={<SmartToy />}
+            label={config.name}
+            sx={{ 
+              bgcolor: 'white',
+              fontWeight: 'bold',
+              fontSize: { xs: '0.9rem', sm: '1rem' }
+            }}
+          />
         </Box>
         <Paper 
-          elevation={3} 
+          elevation={6} 
           sx={{ 
-            p: { xs: 1, sm: 2 }, 
             flex: 1,
             display: 'flex', 
             flexDirection: 'column',
-            bgcolor: 'rgba(255, 255, 255, 0.9)',
-            borderRadius: 2,
-            maxHeight: 'calc(100vh - 80px)',
+            bgcolor: 'white',
+            borderRadius: 3,
             overflow: 'hidden'
           }}
         >
-          {/* Chat Header */}
-          <Typography variant="h6" gutterBottom sx={{ textAlign: 'center', fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
-            {config.name}
-          </Typography>
 
           {/* Messages Area */}
-          <Box sx={{ 
-            flexGrow: 1, 
-            overflowY: 'auto', 
-            mb: { xs: 1, sm: 2 },
-            p: { xs: 1, sm: 2 },
-            borderRadius: 1,
-            WebkitOverflowScrolling: 'touch'
-          }}>
+          <Box 
+            className="chat-messages-container"
+            sx={{ 
+              flexGrow: 1, 
+              overflowY: 'auto',
+              p: 2,
+              bgcolor: '#f8f9fa',
+              WebkitOverflowScrolling: 'touch'
+            }}
+          >
             {messages.map((message, originalIndex) => {
               // Skip system messages in rendering
               if (message.role === 'system') return null;
@@ -300,22 +291,50 @@ ${config.exampleQuestions}
               return (
               <Box 
                 key={originalIndex}
+                className="chat-message"
                 sx={{
-                  mb: 2,
+                  mb: 3,
                   display: 'flex',
-                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start'
+                  alignItems: 'flex-start',
+                  gap: 1.5,
+                  flexDirection: message.role === 'user' ? 'row-reverse' : 'row'
                 }}
               >
-                <Paper
-                  elevation={1}
+                <Avatar
                   sx={{
-                    p: { xs: 1.5, sm: 2 },
-                    maxWidth: { xs: '85%', sm: '70%' },
-                    bgcolor: message.role === 'user' ? 'primary.main' : 'background.paper',
-                    color: message.role === 'user' ? 'white' : 'text.primary',
-                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                    bgcolor: message.role === 'user' ? '#667eea' : '#764ba2',
+                    width: 36,
+                    height: 36
                   }}
                 >
+                  {message.role === 'user' ? <Person /> : <SmartToy />}
+                </Avatar>
+                <Box sx={{ maxWidth: '70%' }}>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: 'text.secondary',
+                      ml: message.role === 'user' ? 'auto' : 0,
+                      mr: message.role === 'user' ? 0 : 'auto',
+                      display: 'block',
+                      mb: 0.5,
+                      textAlign: message.role === 'user' ? 'right' : 'left'
+                    }}
+                  >
+                    {message.role === 'user' ? 'Sinä' : config.name}
+                    {message.timestamp && ` • ${new Date(message.timestamp).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' })}`}
+                  </Typography>
+                  <Paper
+                    className="chat-message-paper"
+                    elevation={message.isError ? 0 : 1}
+                    sx={{
+                      p: 2,
+                      bgcolor: message.isError ? '#ffebee' : (message.role === 'user' ? '#667eea' : 'white'),
+                      color: message.isError ? '#c62828' : (message.role === 'user' ? 'white' : 'text.primary'),
+                      borderRadius: 2,
+                      border: message.isError ? '1px solid #ffcdd2' : 'none'
+                    }}
+                  >
                   <ReactMarkdown
                     components={{
                       // Custom styles for Markdown elements
@@ -390,9 +409,10 @@ ${config.exampleQuestions}
                     </Box>
                   )}
                   {/* Feedback buttons for assistant messages */}
-                  {message.role === 'assistant' && (
-                    <Box sx={{ mt: 1, display: 'flex', gap: 1, justifyContent: 'flex-start' }}>
+                  {message.role === 'assistant' && !message.isError && (
+                    <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(0,0,0,0.05)', display: 'flex', gap: 1, alignItems: 'center' }}>
                       <IconButton
+                        className="feedback-button"
                         size="small"
                         onClick={() => handleFeedback(originalIndex, 'good')}
                         disabled={message.feedback !== undefined}
@@ -412,6 +432,7 @@ ${config.exampleQuestions}
                         <ThumbUp fontSize="small" />
                       </IconButton>
                       <IconButton
+                        className="feedback-button"
                         size="small"
                         onClick={() => handleFeedback(originalIndex, 'bad')}
                         disabled={message.feedback !== undefined}
@@ -433,43 +454,100 @@ ${config.exampleQuestions}
                     </Box>
                   )}
                 </Paper>
+                </Box>
               </Box>
               );
             })}
+            {/* Typing indicator */}
+            {isProcessing && (
+              <Box 
+                className="chat-message"
+                sx={{
+                  mb: 3,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 1.5
+                }}
+              >
+                <Avatar
+                  sx={{
+                    bgcolor: '#764ba2',
+                    width: 36,
+                    height: 36
+                  }}
+                >
+                  <SmartToy />
+                </Avatar>
+                <Box>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: 'text.secondary',
+                      display: 'block',
+                      mb: 0.5
+                    }}
+                  >
+                    {config.name}
+                  </Typography>
+                  <Paper
+                    elevation={1}
+                    sx={{
+                      p: 2,
+                      bgcolor: 'white',
+                      borderRadius: 2
+                    }}
+                  >
+                    <div className="typing-indicator">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  </Paper>
+                </Box>
+              </Box>
+            )}
+            <div ref={messagesEndRef} />
           </Box>
 
           {/* Input Area */}
-          <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 }, flexDirection: { xs: 'column', sm: 'row' } }}>
-            <TextField
-              fullWidth
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-              placeholder="Type your message..."
-              variant="outlined"
-              size="small"
-              disabled={isProcessing}
-              multiline
-              maxRows={3}
-              sx={{
-                fontSize: { xs: '0.9rem', sm: '1rem' },
-                '& .MuiOutlinedInput-root': {
-                  fontSize: { xs: '0.9rem', sm: '1rem' }
-                }
-              }}
-            />
-            <Button 
-              variant="contained" 
-              onClick={handleSendMessage}
-              disabled={!input.trim() || isProcessing}
-              endIcon={isProcessing ? <CircularProgress size={20} color="inherit" /> : null}
-              sx={{ 
-                minWidth: { xs: '100%', sm: 'auto' },
-                fontSize: { xs: '0.9rem', sm: '1rem' }
-              }}
-            >
-              Send
-            </Button>
+          <Box sx={{ 
+            p: 2, 
+            bgcolor: 'white',
+            borderTop: '1px solid rgba(0,0,0,0.1)'
+          }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}>
+              <TextField
+                fullWidth
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                placeholder="Kirjoita viestisi..."
+                variant="outlined"
+                disabled={isProcessing}
+                multiline
+                maxRows={4}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    borderRadius: 2,
+                    bgcolor: '#f8f9fa'
+                  }
+                }}
+              />
+              <IconButton
+                className={input.trim() && !isProcessing ? 'send-button-ready' : ''}
+                color="primary"
+                onClick={handleSendMessage}
+                disabled={!input.trim() || isProcessing}
+                sx={{ 
+                  bgcolor: '#667eea',
+                  color: 'white',
+                  '&:hover': { bgcolor: '#5a67d8' },
+                  '&.Mui-disabled': { bgcolor: '#e0e0e0' }
+                }}
+              >
+                {isProcessing ? <CircularProgress size={24} color="inherit" /> : <SendIcon />}
+              </IconButton>
+            </Box>
           </Box>
         </Paper>
       </Container>

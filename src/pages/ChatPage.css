@@ -1,0 +1,162 @@
+/* ChatPage.css - Modern chat interface styling */
+
+/* Smooth scroll behavior for messages */
+.chat-messages-container {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for chat messages */
+.chat-messages-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-messages-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.chat-messages-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 10px;
+}
+
+.chat-messages-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Message fade-in animation */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-message {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+/* Typing indicator animation */
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+.typing-indicator {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background-color: #667eea;
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Hover effects for feedback buttons */
+.feedback-button {
+  transition: all 0.2s ease;
+}
+
+.feedback-button:hover {
+  transform: scale(1.1);
+}
+
+/* Message hover effect */
+.chat-message-paper {
+  transition: all 0.2s ease;
+}
+
+.chat-message-paper:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Link styling in messages */
+.chat-message a {
+  color: #667eea;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.chat-message a:hover {
+  color: #5a67d8;
+  text-decoration: none;
+}
+
+/* Code block styling in messages */
+.chat-message pre {
+  background-color: #f4f4f4;
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.chat-message code {
+  background-color: #f4f4f4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+}
+
+/* List styling in messages */
+.chat-message ul,
+.chat-message ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.chat-message li {
+  margin: 4px 0;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 600px) {
+  .chat-message {
+    font-size: 14px;
+  }
+  
+  .chat-messages-container {
+    padding: 8px;
+  }
+}
+
+/* Input field focus effect */
+.chat-input-field:focus-within {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Send button pulse animation when typing */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.send-button-ready {
+  animation: pulse 1s infinite;
+}
