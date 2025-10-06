@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../config/firebase';
-import { 
-  Box, 
-  Typography, 
-  AppBar, 
-  Toolbar, 
-  FormControl, 
-  Select, 
-  MenuItem, 
+import {
+  Box,
+  Typography,
+  AppBar,
+  Toolbar,
   Button,
   List,
   ListItem,

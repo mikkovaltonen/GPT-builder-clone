@@ -28,12 +28,20 @@ For questions, collaborations, or support:
 - Chat history storage in Firestore
 - Nested message structure for better organization
 
-## Setup
+## Local Development Setup
+
+### Prerequisites
+- Node.js (v14 or higher)
+- npm or yarn
+- Firebase account
+- OpenAI API key
+
+### Installation Steps
 
 1. Clone the repository:
 ```bash
 git clone [repository-url]
-cd ai-assistant-builder
+cd GPT-builder-clone
 ```
 
 2. Install dependencies:
@@ -67,6 +75,24 @@ firebase init firestore
 ```bash
 npm start
 ```
+
+The application will open at http://localhost:3000
+
+### Available Scripts
+
+- `npm start` - Run the development server
+- `npm build` - Build the production bundle
+- `npm test` - Run tests
+- `npm run eject` - Eject from Create React App (not recommended)
+
+### Troubleshooting
+
+If you encounter issues:
+1. Make sure all environment variables are correctly set in `.env`
+2. Verify Firebase project configuration matches your `.env` settings
+3. Check that your OpenAI API key is valid and has sufficient credits
+4. Ensure Node.js version is compatible (v14+)
+5. Clear npm cache if needed: `npm cache clean --force`
 
 ## Project Structure
 
