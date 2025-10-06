@@ -6,7 +6,7 @@ import { Box, TextField, Button, Paper, Typography, Container, CircularProgress,
 import { ThumbUp, ThumbDown, Send as SendIcon, SmartToy, Person } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import Logo from '../components/Logo';
-import { sendChatMessage } from '../services/openrouter';
+import { sendChatMessage, setSystemContext } from '../services/openrouter';
 import './ChatPage.css';
 
 function ChatPage() {
@@ -20,6 +20,7 @@ function ChatPage() {
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [chatDocId, setChatDocId] = useState(null);
+  const [sessionChatId] = useState(() => `chat_${publishId}_${Date.now()}`);
   const messagesEndRef = useRef(null);
   
   const scrollToBottom = () => {
@@ -46,6 +47,9 @@ Example Q&A:
 ${config.exampleQuestions}
 `;
 
+      // Set system context in OpenRouter service once at initialization
+      setSystemContext(sessionChatId, systemPrompt);
+
       setMessages([
         {
           role: 'system',
@@ -61,7 +65,7 @@ ${config.exampleQuestions}
     };
 
     initializeChat();
-  }, [config]);
+  }, [config, sessionChatId]);
 
   // Fetch config
   useEffect(() => {
@@ -262,7 +266,7 @@ ${config.exampleQuestions}
     try {
       // Filter out system messages for API call
       const messagesToSend = messages.filter(msg => msg.role !== 'system').concat(userMessage);
-      const response = await sendChatMessage(messagesToSend, config, `chat_${Date.now()}`);
+      const response = await sendChatMessage(messagesToSend, config, sessionChatId);
       const assistantContent = typeof response === 'string' ? response : response.text;
       const groundingMetadata = typeof response === 'object' ? response.groundingMetadata : null;
       
