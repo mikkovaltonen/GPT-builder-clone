@@ -7,8 +7,11 @@ const API_KEY = process.env.REACT_APP_OPEN_ROUTER_API_KEY ||
 const MODEL_NAME = 'x-ai/grok-4-fast';
 const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-console.log('OpenRouter API Key:', API_KEY ? `${API_KEY.substring(0, 10)}...` : 'Not found');
-console.log('OpenRouter Model:', MODEL_NAME);
+// Remove console logs in production
+if (process.env.NODE_ENV === 'development') {
+  console.log('OpenRouter API Key:', API_KEY ? 'Configured' : 'Not found');
+  console.log('OpenRouter Model:', MODEL_NAME);
+}
 
 // Store system context for the session - use Map to store per chat
 const systemContextMap = new Map();
@@ -23,19 +26,16 @@ export const sendChatMessage = async (messages, config, chatId = 'default') => {
   }
 
   try {
-    console.log('Sending request to OpenRouter with messages:', messages);
+    // Log only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Sending request to OpenRouter');
+    }
 
-    // Get or set system context for this chat
-    let systemContext = systemContextMap.get(chatId);
+    // Get system context for this chat (should be set at initialization)
+    const systemContext = systemContextMap.get(chatId);
 
-    // Set system context from config if not already set
-    if (config && config.roleDescription && !systemContext) {
-      systemContext = `${config.roleDescription}\n\nInstructions and Knowledge:\n${config.instructions}\n\nExample Q&A:\n${config.exampleQuestions}`;
-      systemContextMap.set(chatId, systemContext);
-      console.log('System context initialized for chat:', chatId, {
-        contextLength: systemContext.length,
-        preview: systemContext.substring(0, 200) + '...'
-      });
+    if (!systemContext) {
+      console.warn('System context not found for chat:', chatId);
     }
 
     // Convert messages to OpenRouter format
@@ -59,7 +59,6 @@ export const sendChatMessage = async (messages, config, chatId = 'default') => {
       }
     });
 
-    console.log('Formatted messages for OpenRouter:', formattedMessages);
 
     const response = await fetch(API_URL, {
       method: 'POST',
@@ -86,11 +85,9 @@ export const sendChatMessage = async (messages, config, chatId = 'default') => {
     }
 
     const data = await response.json();
-    console.log('OpenRouter response:', data);
 
     if (data.choices && data.choices[0] && data.choices[0].message) {
       const text = data.choices[0].message.content;
-      console.log('OpenRouter response text:', text.substring(0, 100) + '...');
 
       // Return response with metadata
       return {

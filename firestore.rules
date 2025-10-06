@@ -12,6 +12,14 @@ service cloud.firestore {
       }
     }
     
+    // Airbnb chat history rules
+    match /Airbnb_chathistory/{chatId} {
+      allow read: if true;      // Anyone can read chat histories
+      allow create: if true;     // Anyone can create new chat sessions
+      allow update: if true;     // Anyone can update (for anonymous users)
+      allow delete: if false;    // No one can delete chat histories
+    }
+    
     // Config rules
     match /configs/{document} {
       allow read: if true;      // Anyone can read bot configs
