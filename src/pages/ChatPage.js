@@ -6,7 +6,7 @@ import { Box, TextField, Button, Paper, Typography, Container, CircularProgress,
 import { ThumbUp, ThumbDown, Send as SendIcon, SmartToy, Person } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import Logo from '../components/Logo';
-import { sendChatMessage } from '../services/gemini';
+import { sendChatMessage } from '../services/openrouter';
 import './ChatPage.css';
 
 function ChatPage() {
@@ -105,18 +105,37 @@ ${config.exampleQuestions}
     fetchConfig();
   }, [publishId]);
 
-  // Save chat session - simplified structure
+  // Save chat session with structured data
   const saveChatSession = async () => {
     const messagesToSave = messages.filter(msg => msg.role !== 'system');
     
     if (!chatDocId && messagesToSave.length > 1) {
       try {
+        // Header level data
         const chatDoc = await addDoc(collection(db, 'Airbnb_chathistory'), {
+          // Header tiedot
           publishId: config.publishId,
           botName: config.name,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          messages: messagesToSave
+          user: 'anonymous', // Voit lisätä käyttäjätunnistuksen jos tarpeen
+          sessionStarted: serverTimestamp(),
+          lastUpdated: serverTimestamp(),
+          
+          // Viestit rivitasolla
+          messages: messagesToSave.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            feedback: msg.feedback || null,
+            feedbackComment: msg.feedbackComment || null,
+            // API kutsu tiedot jos on assistant viesti
+            ...(msg.role === 'assistant' && {
+              apiCall: {
+                model: 'x-ai/grok-4-fast',
+                groundingMetadata: msg.groundingMetadata || null,
+                isError: msg.isError || false
+              }
+            })
+          }))
         });
         setChatDocId(chatDoc.id);
         return chatDoc.id;
@@ -127,8 +146,22 @@ ${config.exampleQuestions}
     } else if (chatDocId) {
       try {
         await updateDoc(doc(db, 'Airbnb_chathistory', chatDocId), {
-          messages: messagesToSave,
-          updatedAt: serverTimestamp()
+          lastUpdated: serverTimestamp(),
+          messages: messagesToSave.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            feedback: msg.feedback || null,
+            feedbackComment: msg.feedbackComment || null,
+            // API kutsu tiedot jos on assistant viesti
+            ...(msg.role === 'assistant' && {
+              apiCall: {
+                model: 'x-ai/grok-4-fast',
+                groundingMetadata: msg.groundingMetadata || null,
+                isError: msg.isError || false
+              }
+            })
+          }))
         });
         return chatDocId;
       } catch (error) {
@@ -175,13 +208,34 @@ ${config.exampleQuestions}
       docId = await saveChatSession();
     }
     
-    // Save feedback to Firestore
+    // Save feedback to Firestore with structured data
     if (docId) {
       try {
         const messagesToSave = updatedMessages.filter(msg => msg.role !== 'system');
         await updateDoc(doc(db, 'Airbnb_chathistory', docId), {
-          messages: messagesToSave,
-          updatedAt: serverTimestamp()
+          lastUpdated: serverTimestamp(),
+          // Päivitä viimeinen palaute header-tasolla
+          lastFeedback: {
+            type: feedback,
+            comment: feedbackComment,
+            timestamp: serverTimestamp()
+          },
+          messages: messagesToSave.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            timestamp: msg.timestamp,
+            feedback: msg.feedback || null,
+            feedbackComment: msg.feedbackComment || null,
+            // API kutsu tiedot jos on assistant viesti
+            ...(msg.role === 'assistant' && {
+              apiCall: {
+                model: msg.model || 'x-ai/grok-4-fast',
+                responseTime: msg.apiResponseTime || null,
+                groundingMetadata: msg.groundingMetadata || null,
+                isError: msg.isError || false
+              }
+            })
+          }))
         });
       } catch (error) {
         console.error('Error saving feedback:', error);
@@ -203,6 +257,8 @@ ${config.exampleQuestions}
     setInput('');
     setIsProcessing(true);
 
+    const apiStartTime = Date.now();
+    
     try {
       // Filter out system messages for API call
       const messagesToSend = messages.filter(msg => msg.role !== 'system').concat(userMessage);
@@ -210,20 +266,24 @@ ${config.exampleQuestions}
       const assistantContent = typeof response === 'string' ? response : response.text;
       const groundingMetadata = typeof response === 'object' ? response.groundingMetadata : null;
       
-      const assistantMessage = { 
-        role: 'assistant', 
+      const assistantMessage = {
+        role: 'assistant',
         content: assistantContent,
         groundingMetadata: groundingMetadata,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        apiResponseTime: Date.now() - apiStartTime,
+        model: response.model || 'x-ai/grok-4-fast'
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('AI Error:', error);
       const errorMessage = {
         role: 'assistant',
-        content: `Virhe: ${error.message}\n\nTarkista että:\n1. Gemini API-avain on asetettu .env.local tiedostoon\n2. Sovellus on käynnistetty uudelleen .env muutosten jälkeen\n3. API-avain on oikea (REACT_APP_GEMINI_API_KEY)`,
+        content: `Virhe: ${error.message}\n\nTarkista että:\n1. OpenRouter API-avain on asetettu .env tiedostoon\n2. Sovellus on käynnistetty uudelleen .env muutosten jälkeen\n3. API-avain on oikea (VITE_OPEN_ROUTER_API_KEY tai REACT_APP_OPEN_ROUTER_API_KEY)`,
         timestamp: new Date().toISOString(),
-        isError: true
+        isError: true,
+        apiResponseTime: Date.now() - apiStartTime,
+        model: 'x-ai/grok-4-fast'
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
